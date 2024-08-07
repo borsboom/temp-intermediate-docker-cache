@@ -1,0 +1,41 @@
+---
+name: Build
+on:
+  push:
+    branches:
+      - develop
+
+  workflow_dispatch:
+env:
+  IMAGE_NAME: temp-intermediate-docker-cache
+  VERSION_NUMBER: '1.0.1.${{ github.run_number }}'
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v3
+      - name: Build image
+        env:
+          DOCKER_IMAGE_NAME: ${{ env.IMAGE_NAME }}
+        run: |
+          set -euxo pipefail
+
+          # Pull previous builder image
+          docker pull "$DOCKER_IMAGE_NAME:builder"
+
+          # Build new builder image
+          docker build -f Dockerfile.builder -t "$DOCKER_IMAGE_NAME:builder" \
+            --cache-from "$DOCKER_IMAGE_NAME:builder" .
+
+          # Build website image
+          docker build . -t "$DOCKER_IMAGE_NAME"
+
+          # Tag website image with version
+          docker tag "$DOCKER_IMAGE_NAME" "$DOCKER_IMAGE_NAME:$VERSION_NUMBER"
+
+          # Push images
+          docker push "$DOCKER_IMAGE_NAME:builder"
+          #@@@ docker push "$DOCKER_IMAGE_NAME"
+          #@@@ docker push "$DOCKER_IMAGE_NAME:$VERSION_NUMBER"
