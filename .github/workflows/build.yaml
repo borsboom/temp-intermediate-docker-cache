@@ -7,19 +7,23 @@ on:
 
   workflow_dispatch:
 env:
-  IMAGE_NAME: temp-intermediate-docker-cache
+  IMAGE_NAME: website
   VERSION_NUMBER: '1.0.1.${{ github.run_number }}'
 jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
     steps:
       - name: Checkout project
         uses: actions/checkout@v3
       - name: Build image
         env:
           #@@@ RENAME IMAGE
-          BUILDER_IMAGE_ID: ghcr.io/${{ github.repository_owner }}/temp-intermediate-docker-cache-builder
+          #@@@ AUTOMATICALLY SET IMAGE TO REPO NAME
+          BUILDER_IMAGE_ID: ghcr.io/${{ github.repository }}:builder
           DOCKER_IMAGE_NAME: ${{ env.IMAGE_NAME }}
         run: |
           set -euxo pipefail
@@ -32,8 +36,8 @@ jobs:
           docker pull "$BUILDER_IMAGE_ID" || true
 
           # Build new builder image
-          docker build -f Dockerfile.builder -t "$BUILDER_IMAGE_ID" \
-            --cache-from "$BUILDER_IMAGE_ID" .
+          docker build -f Dockerfile.builder -t builder \
+            --cache-from "$BUILDER_IMAGE_ID" --build-arg BUILDKIT_INLINE_CACHE=1 .
 
           # Build website image
           docker build . -t "$DOCKER_IMAGE_NAME"
@@ -42,6 +46,7 @@ jobs:
           docker tag "$DOCKER_IMAGE_NAME" "$DOCKER_IMAGE_NAME:$VERSION_NUMBER"
 
           # Push images
+          docker tag builder "$BUILDER_IMAGE_ID"
           docker push "$BUILDER_IMAGE_ID"
           #@@@ docker push "$DOCKER_IMAGE_NAME"
           #@@@ docker push "$DOCKER_IMAGE_NAME:$VERSION_NUMBER"
